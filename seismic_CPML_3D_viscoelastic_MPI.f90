@@ -149,37 +149,41 @@
   implicit none
 
 ! total number of grid points in each direction of the grid
-  integer, parameter :: NX = 210
-  integer, parameter :: NY = 800
-  integer, parameter :: NZ = 220 ! even number in order to cut along Z axis
+  integer, parameter :: NX = 200
+  integer, parameter :: NY = 200
+  integer, parameter :: NZ = 150 ! even number in order to cut along Z axis
 
 ! number of processes used in the MPI run
 ! and local number of points (for simplicity we cut the mesh along Z only)
-  integer, parameter :: NPROC = 4 !! 20
+  integer, parameter :: NPROC = 10 !! 20
   integer, parameter :: NZ_LOCAL = NZ / NPROC
 
 ! size of a grid cell
-  double precision, parameter :: DELTAX = 4.d0, ONE_OVER_DELTAX = 1.d0 / DELTAX
+  double precision, parameter :: DELTAX = 10.d0, ONE_OVER_DELTAX = 1.d0 / DELTAX
   double precision, parameter :: DELTAY = DELTAX, DELTAZ = DELTAX
   double precision, parameter :: ONE_OVER_DELTAY = ONE_OVER_DELTAX, ONE_OVER_DELTAZ = ONE_OVER_DELTAX
   double precision, parameter :: ONE=1.d0,TWO=2.d0, DIM=3.d0
 
 ! P-velocity, S-velocity and density
-  double precision, parameter :: cp = 3000.d0
-  double precision, parameter :: cs = 2000.d0
-  double precision, parameter :: rho = 2000.d0
+  double precision, parameter :: cp = 2000.d0
+  double precision, parameter :: cs = cp / 1.732d0
+  double precision, parameter :: rho = 1000.d0
   double precision, parameter :: mu = rho*cs*cs
   double precision, parameter :: lambda = rho*(cp*cp - 2.d0*cs*cs)
   double precision, parameter :: lambdaplustwomu = rho*cp*cp
 
+  double precision, parameter :: MXX = 1.d0
+  double precision, parameter :: MYY = 1.d0
+  double precision, parameter :: MZZ = 1.d0
+
 ! total number of time steps
-  integer, parameter :: NSTEP = 100000
+  integer, parameter :: NSTEP = 1000
 
 ! time step in seconds
-  double precision, parameter :: DELTAT = 4.d-4
+  double precision, parameter :: DELTAT = 0.001
 
 ! parameters for the source
-  double precision, parameter :: f0 = 18.d0
+  double precision, parameter :: f0 = 7.d0
   double precision, parameter :: t0 = 1.20d0 / f0
   double precision, parameter :: factor = 1.d7
 
@@ -188,8 +192,8 @@
   integer, parameter :: N_SLS = 2
 
 ! Qp approximately equal to 13, Qkappa approximately to 20 and Qmu / Qs approximately to 10
-  double precision, parameter :: QKappa_att = 20.d0, QMu_att = 10.d0
-  double precision, parameter :: f0_attenuation = 16 ! in Hz
+  double precision, parameter :: QKappa_att = 60.d0, QMu_att = 40.d0
+  double precision, parameter :: f0_attenuation = 7 ! in Hz
 
 ! flags to add PML layers to the edges of the grid
   logical, parameter :: USE_PML_XMIN = .true.
@@ -203,23 +207,31 @@
   integer, parameter :: NPOINTS_PML = 10
 
 ! source
+  double precision, parameter :: xsource = 1000.d0
+  double precision, parameter :: ysource = 1100.d0
+  integer, parameter :: ISOURCE = xsource / DELTAX + 1
+  integer, parameter :: JSOURCE = ysource / DELTAY + 1
 ! integer, parameter :: ISOURCE = NX - 2*NPOINTS_PML - 1
-  integer, parameter :: ISOURCE = NPOINTS_PML+20
-  integer, parameter :: JSOURCE = NY / 5 + 1
-  double precision, parameter :: xsource = (ISOURCE) * DELTAX
-  double precision, parameter :: ysource = (JSOURCE) * DELTAY
+  ! integer, parameter :: ISOURCE = NPOINTS_PML+20
+  ! integer, parameter :: JSOURCE = NY / 5 + 1
+  ! double precision, parameter :: xsource = (ISOURCE) * DELTAX
+  ! double precision, parameter :: ysource = (JSOURCE) * DELTAY
 ! angle of source force clockwise with respect to vertical (Y) axis
   double precision, parameter :: ANGLE_FORCE = 0.d0
 
 ! receivers
-  integer, parameter :: NREC = 3
-  double precision, parameter :: xdeb = xsource - 100.d0 ! first receiver x in meters
-  double precision, parameter :: ydeb = 2300.d0 ! first receiver y in meters
-  double precision, parameter :: xfin = xsource ! last receiver x in meters
-  double precision, parameter :: yfin =  300.d0 ! last receiver y in meters
+  integer, parameter :: NREC = 200
+  ! double precision, parameter :: xdeb = xsource - 100.d0 ! first receiver x in meters
+  ! double precision, parameter :: ydeb = 2300.d0 ! first receiver y in meters
+  ! double precision, parameter :: xfin = xsource ! last receiver x in meters
+  ! double precision, parameter :: yfin =  300.d0 ! last receiver y in meters
+  double precision, parameter :: xdeb = 0.d0 ! first receiver x in meters
+  double precision, parameter :: ydeb = 1000.d0 ! first receiver y in meters
+  double precision, parameter :: xfin = 2000.d0 ! last receiver x in meters
+  double precision, parameter :: yfin =  1000.d0 ! last receiver y in meters
 
 ! display information on the screen from time to time
-  integer, parameter :: IT_DISPLAY = 10000
+  integer, parameter :: IT_DISPLAY = 200
 
 ! value of PI
   double precision, parameter :: PI = 3.141592653589793238462643d0
@@ -240,7 +252,8 @@
   double precision, parameter :: NPOWER = 2.d0
 
 ! from Stephen Gedney's unpublished class notes for class EE699, lecture 8, slide 8-11
-  double precision, parameter :: K_MAX_PML = 7.d0
+  ! double precision, parameter :: K_MAX_PML = 7.d0
+  double precision, parameter :: K_MAX_PML = 1.d0
   double precision, parameter :: ALPHA_MAX_PML = 2.d0*PI*(f0/2.d0) ! from Festa and Vilotte
 
 ! arrays for the memory variables
@@ -1331,6 +1344,9 @@
 
   vx(i,j,NZ_LOCAL) = vx(i,j,NZ_LOCAL) + force_x * DELTAT / rho
   vy(i,j,NZ_LOCAL) = vy(i,j,NZ_LOCAL) + force_y * DELTAT / rho
+  ! sigmaxx(i,j,NZ_LOCAL) = sigmaxx(i,j,NZ_LOCAL) + source_term * 10 * 10 * 10 * MXX * DELTAT / rho
+  ! sigmayy(i,j,NZ_LOCAL) = sigmayy(i,j,NZ_LOCAL) + source_term * 10 * 10 * 10 * MYY * DELTAT / rho
+  ! sigmazz(i,j,NZ_LOCAL) = sigmazz(i,j,NZ_LOCAL) + source_term * 10 * 10 * 10 * MZZ * DELTAT / rho
 
   endif
 

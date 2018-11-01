@@ -121,14 +121,18 @@
   include 'mpif.h'
 
 ! total number of grid points in each direction of the grid
-  integer, parameter :: NX = 101
-  integer, parameter :: NY = 641
-  integer, parameter :: NZ = 640 ! even number in order to cut along Z axis
+  integer, parameter :: NX = 200
+  integer, parameter :: NY = 200
+  integer, parameter :: NZ = 150 ! even number in order to cut along Z axis
 
 ! number of processes used in the MPI run
 ! and local number of points (for simplicity we cut the mesh along Z only)
-  integer, parameter :: NPROC = 64
+  integer, parameter :: NPROC = 10
   integer, parameter :: NZ_LOCAL = NZ / NPROC
+
+  double precision, parameter :: MXX = 1.d0
+  double precision, parameter :: MYY = 1.d0
+  double precision, parameter :: MZZ = 1.d0
 
 ! size of a grid cell
   double precision, parameter :: DELTAX = 10.d0, ONE_OVER_DELTAX = 1.d0 / DELTAX
@@ -136,18 +140,19 @@
   double precision, parameter :: ONE_OVER_DELTAY = ONE_OVER_DELTAX, ONE_OVER_DELTAZ = ONE_OVER_DELTAX
 
 ! P-velocity, S-velocity and density
-  double precision, parameter :: cp = 3300.d0
+  double precision, parameter :: cp = 2000.d0
   double precision, parameter :: cs = cp / 1.732d0
-  double precision, parameter :: rho = 2800.d0
+  double precision, parameter :: rho = 1000.d0
   double precision, parameter :: mu = rho*cs*cs
   double precision, parameter :: lambda = rho*(cp*cp - 2.d0*cs*cs)
   double precision, parameter :: lambdaplustwomu = rho*cp*cp
 
 ! total number of time steps
-  integer, parameter :: NSTEP = 2500
+  integer, parameter :: NSTEP = 1000
 
 ! time step in seconds
-  double precision, parameter :: DELTAT = 1.6d-3
+  ! double precision, parameter :: DELTAT = 1.6d-3
+  double precision, parameter :: DELTAT = 0.001
 
 ! parameters for the source
   double precision, parameter :: f0 = 7.d0
@@ -174,26 +179,27 @@
 ! rank == rank_cut_plane will do it, and it will put it in its last point along Z, in NZ_LOCAL.
 ! if one wants to put the source at another location, one can invert the formulas below
 ! and define the grid point (ISOURCE, JSOURCE) to use as:
-! double precision, parameter :: xsource = ...put here the coordinate you want...
-! double precision, parameter :: ysource = ...put here the coordinate you want...
-! integer, parameter :: ISOURCE = xsource / DELTAX + 1
-! integer, parameter :: JSOURCE = ysource / DELTAY + 1
-  integer, parameter :: ISOURCE = NX - 2*NPOINTS_PML - 1
-  integer, parameter :: JSOURCE = 2 * NY / 3 + 1
-  double precision, parameter :: xsource = (ISOURCE - 1) * DELTAX
-  double precision, parameter :: ysource = (JSOURCE - 1) * DELTAY
+  double precision, parameter :: xsource = 1000.d0
+  double precision, parameter :: ysource = 1100.d0
+  integer, parameter :: ISOURCE = xsource / DELTAX + 1
+  integer, parameter :: JSOURCE = ysource / DELTAY + 1
+  ! integer, parameter :: ISOURCE = NX - 2*NPOINTS_PML - 1
+  ! integer, parameter :: JSOURCE = 2 * NY / 3 + 1
+  ! double precision, parameter :: xsource = (ISOURCE - 1) * DELTAX
+  ! double precision, parameter :: ysource = (JSOURCE - 1) * DELTAY
 ! angle of source force clockwise with respect to vertical (Y) axis
   double precision, parameter :: ANGLE_FORCE = 135.d0
 
 ! receivers
-  integer, parameter :: NREC = 2
-  double precision, parameter :: xdeb = xsource - 100.d0 ! first receiver x in meters
-  double precision, parameter :: ydeb = 2300.d0 ! first receiver y in meters
-  double precision, parameter :: xfin = xsource ! last receiver x in meters
-  double precision, parameter :: yfin =  300.d0 ! last receiver y in meters
+  integer, parameter :: NREC = 200
+  ! double precision, parameter :: xdeb = xsource - 100.d0 ! first receiver x in meters
+  double precision, parameter :: xdeb = 0.d0 ! first receiver x in meters
+  double precision, parameter :: ydeb = 1000.d0 ! first receiver y in meters
+  double precision, parameter :: xfin = 2000.d0 ! last receiver x in meters
+  double precision, parameter :: yfin =  1000.d0 ! last receiver y in meters
 
 ! display information on the screen from time to time
-  integer, parameter :: IT_DISPLAY = 100
+  integer, parameter :: IT_DISPLAY = 200
 
 ! value of PI
   double precision, parameter :: PI = 3.141592653589793238462643d0
@@ -283,7 +289,7 @@
   double precision, dimension(NREC) :: xrec,yrec
 
 ! for seismograms
-  double precision, dimension(NSTEP,NREC) :: sisvx,sisvy
+  double precision, dimension(NSTEP,NREC) :: sisvx,sisvy,sisvz
 
 ! for evolution of total energy in the medium
   double precision :: epsilon_xx,epsilon_yy,epsilon_zz,epsilon_xy,epsilon_xz,epsilon_yz
@@ -1067,18 +1073,28 @@
 ! Ricker source time function (second derivative of a Gaussian)
 ! source_term = factor * (1.d0 - 2.d0*a*(t-t0)**2)*exp(-a*(t-t0)**2)
 
-  force_x = sin(ANGLE_FORCE * DEGREES_TO_RADIANS) * source_term
-  force_y = cos(ANGLE_FORCE * DEGREES_TO_RADIANS) * source_term
+  ! force_x = sin(ANGLE_FORCE * DEGREES_TO_RADIANS) * source_term
+  ! force_y = cos(ANGLE_FORCE * DEGREES_TO_RADIANS) * source_term
+  force_x = source_term
+  force_y = 0.d0
 
 ! define location of the source
   i = ISOURCE
   j = JSOURCE
 
+
 ! here in this demo code we put the source in the middle of the model in the Z direction,
 ! i.e. in NZ/2, which means putting it in the cut plane (i.e. only the processor for which
 ! rank == rank_cut_plane will do it, and it will put it in its last point along Z, in NZ_LOCAL
-  vx(i,j,NZ_LOCAL) = vx(i,j,NZ_LOCAL) + force_x * DELTAT / rho
-  vy(i,j,NZ_LOCAL) = vy(i,j,NZ_LOCAL) + force_y * DELTAT / rho
+  ! vx(i,j,NZ_LOCAL) = vx(i,j,NZ_LOCAL) + force_x * DELTAT / rho
+  ! vy(i,j,NZ_LOCAL) = vy(i,j,NZ_LOCAL) + force_y * DELTAT / rho
+
+
+  sigmaxx(i,j,NZ_LOCAL) = sigmaxx(i,j,NZ_LOCAL) + source_term * 10 * 10 * 10 * MXX * DELTAT / rho
+  sigmayy(i,j,NZ_LOCAL) = sigmayy(i,j,NZ_LOCAL) + source_term * 10 * 10 * 10 * MYY * DELTAT / rho
+  sigmazz(i,j,NZ_LOCAL) = sigmazz(i,j,NZ_LOCAL) + source_term * 10 * 10 * 10 * MZZ * DELTAT / rho
+  
+  ! ,sigmayy,sigmazz,sigmaxy,sigmaxz,sigmayz
 
   endif
 
@@ -1125,6 +1141,7 @@
     do irec = 1,NREC
       sisvx(it,irec) = vx(ix_rec(irec),iy_rec(irec),NZ_LOCAL)
       sisvy(it,irec) = vy(ix_rec(irec),iy_rec(irec),NZ_LOCAL)
+      sisvz(it,irec) = vz(ix_rec(irec),iy_rec(irec),NZ_LOCAL)
     enddo
   endif
 
@@ -1231,7 +1248,7 @@
 ! save seismograms
     print *,'saving seismograms'
     print *
-    call write_seismograms(sisvx,sisvy,NSTEP,NREC,DELTAT)
+    call write_seismograms(sisvx,sisvy,sisvz,NSTEP,NREC,DELTAT)
 
     call create_color_image(vx(:,:,NZ_LOCAL),NX,NY,it,ISOURCE,JSOURCE,ix_rec,iy_rec,nrec, &
                          NPOINTS_PML,USE_PML_XMIN,USE_PML_XMAX,USE_PML_YMIN,USE_PML_YMAX,1)
@@ -1247,7 +1264,7 @@
   if (rank == rank_cut_plane) then
 
 ! save seismograms
-  call write_seismograms(sisvx,sisvy,NSTEP,NREC,DELTAT)
+  call write_seismograms(sisvx,sisvy,sisvz,NSTEP,NREC,DELTAT)
 
 ! save total energy
   open(unit=20,file='energy.dat',status='unknown')
@@ -1327,7 +1344,7 @@
 !----  save the seismograms in ASCII text format
 !----
 
-  subroutine write_seismograms(sisvx,sisvy,nt,nrec,DELTAT)
+  subroutine write_seismograms(sisvx,sisvy,sisvz,nt,nrec,DELTAT)
 
   implicit none
 
@@ -1336,6 +1353,7 @@
 
   double precision sisvx(nt,nrec)
   double precision sisvy(nt,nrec)
+  double precision sisvz(nt,nrec)
 
   integer irec,it
 
@@ -1357,6 +1375,16 @@
     open(unit=11,file=file_name,status='unknown')
     do it=1,nt
       write(11,*) sngl(dble(it-1)*DELTAT),' ',sngl(sisvy(it,irec))
+    enddo
+    close(11)
+  enddo
+
+! Z component
+  do irec=1,nrec
+    write(file_name,"('Vz_file_',i3.3,'.dat')") irec
+    open(unit=11,file=file_name,status='unknown')
+    do it=1,nt
+      write(11,*) sngl(dble(it-1)*DELTAT),' ',sngl(sisvz(it,irec))
     enddo
     close(11)
   enddo
